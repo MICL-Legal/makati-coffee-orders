@@ -84,7 +84,7 @@
 <body>
 <main class="wrap">
   <h1>☕ Coffee Order</h1>
-  <p class="sub">Pick a drink, set it the way you like, then tap <b>Send order</b> to message it back.</p>
+  <p class="sub">Pick a drink, set it the way you like, then tap <b>Place order</b>.</p>
 
   <h2>Your name</h2>
   <input type="text" id="name" placeholder="e.g. Maria" autocomplete="given-name" maxlength="40">
@@ -120,8 +120,8 @@
   <div class="bar-in">
     <div class="summary" id="summary">Choose a drink to start</div>
     <div class="btns">
-      <a class="btn primary" id="send" href="#" aria-disabled="true">Send order</a>
-      <a class="btn" id="wa" href="#" target="_blank" rel="noopener" aria-disabled="true">WhatsApp</a>
+      <button class="btn primary" id="place" type="button" aria-disabled="true">Place order</button>
+      <a class="btn" id="send" href="#" aria-disabled="true">Share</a>
       <button class="btn" id="copy" type="button" aria-disabled="true">Copy</button>
     </div>
   </div>
@@ -183,14 +183,43 @@ function orderText() {
   return lines.join("\n");
 }
 
+// Apps Script web app that appends each order to the "Coffee Orders" Google Sheet.
+const ORDER_URL = "https://script.google.com/macros/s/AKfycbwaGXEoqIW9qwcd2kpdB7tBNKF-TfLO5lZHW5ZeuyDIGSH2vklHL0QInL1h7fcKl68GiQ/exec";
+let savedText = "";
+
 function update() {
   $("qty").textContent = qty;
   const t = orderText();
   const ok = !!t;
-  ["send", "wa", "copy"].forEach(id => $(id).setAttribute("aria-disabled", String(!ok)));
+  ["send", "copy"].forEach(id => $(id).setAttribute("aria-disabled", String(!ok)));
+  const saved = ok && t === savedText;
+  $("place").setAttribute("aria-disabled", String(!ok || saved));
+  $("place").textContent = saved ? "✓ Order placed" : "Place order";
   $("summary").textContent = ok ? t.split("\n").slice(1, 3).join(" — ") : "Choose a drink to start";
-  $("wa").href = ok ? "https://wa.me/?text=" + encodeURIComponent(t) : "#";
 }
+
+async function placeOrder() {
+  const t = orderText(); if (!t || t === savedText) return;
+  const d = DRINKS.find(x => x.id === val("drink"));
+  const order = {
+    name: $("name").value.trim(), drink: d.name, cafe: d.where ? d.where.split(" · ")[0] : "",
+    qty, temp: val("temp"), size: val("size"), milk: val("milk"), sugar: val("sugar"), notes: $("notes").value.trim()
+  };
+  $("place").setAttribute("aria-disabled", "true");
+  $("place").textContent = "Placing…";
+  try {
+    // text/plain keeps this a "simple" request, so the browser skips the CORS preflight Apps Script can't answer.
+    const res = await fetch(ORDER_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(order) });
+    const out = await res.json();
+    if (!out.ok) throw new Error(out.error);
+    savedText = t;
+    toast("Order placed — thank you!");
+  } catch (err) {
+    toast("Couldn't place order — please try again");
+  }
+  update();
+}
+$("place").onclick = placeOrder;
 
 function toast(msg) {
   const el = $("toast"); el.textContent = msg; el.classList.add("show");
