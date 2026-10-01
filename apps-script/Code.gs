@@ -4,6 +4,10 @@ const FIELDS = ['name', 'drink', 'cafe', 'qty', 'temp', 'size', 'milk', 'sugar',
 
 function sheet_() {
   const sh = SpreadsheetApp.getActive().getSheets()[0];
+  // New sheets default to US Pacific time; orders should read in Manila time.
+  if (SpreadsheetApp.getActive().getSpreadsheetTimeZone() !== 'Asia/Manila') {
+    SpreadsheetApp.getActive().setSpreadsheetTimeZone('Asia/Manila');
+  }
   if (sh.getLastRow() === 0) {
     sh.setName('Orders');
     sh.appendRow(HEADERS);
